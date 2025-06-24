@@ -30,28 +30,60 @@ public static class TbConfigAppEndpoints
         .WithName("GetTbConfigAppById");
 
         // POST /api/TbConfigApp
-        group.MapPost("/", async (CreateConfigAppDto configDto, MKReportsDbContext db) =>
+        group.MapPost("/", async (
+    CreateConfigAppDto configDto, 
+    MKReportsDbContext db, 
+    IReportGeneratorService reportGenerator) =>
+{
+    if (!MiniValidator.TryValidate(configDto, out var errors))
+    {
+        return Results.ValidationProblem(errors);
+    }
+
+    // A lógica de salvar no banco continua a mesma
+    var newConfig = new TbConfigApp
+    {
+        ReportName = configDto.ReportName,
+        PathIn = configDto.PathIn,
+        PathOut = configDto.PathOut, // Pode ser nulo/vazio agora se não for mais usado
+        FlagAtivo = configDto.FlagAtivo
+    };
+
+    db.TbConfigApps.Add(newConfig);
+    await db.SaveChangesAsync();
+
+    //logger.LogInformation("Configuração de relatório salva com ID: {Id}", newConfig.Id);
+
+    try
+    {
+        // 1. Chama o serviço e obtém a string Base64
+        var base64Pdf = await reportGenerator.GenerateReportAsync(
+            newConfig.ReportName, 
+            newConfig.PathIn
+            // O outputPath não é mais necessário aqui
+        );
+
+        // 2. Prepara o objeto de resposta
+        var responseDto = new ReportResponseDto
         {
-            
-            if (!MiniValidator.TryValidate(configDto, out var errors))
-            {
-                return Results.ValidationProblem(errors);
-            }
+            FileName = $"{newConfig.ReportName}.pdf",
+            FileContentsBase64 = base64Pdf
+        };
 
-            // 4. Map the valid DTO to your database entity
-            var newConfig = new TbConfigApp
-            {
-                ReportName = configDto.ReportName,
-                PathIn = configDto.PathIn,
-                PathOut = configDto.PathOut,
-                FlagAtivo = configDto.FlagAtivo
-            };
-
-            db.TbConfigApps.Add(newConfig);
-            await db.SaveChangesAsync();
-            return Results.Created($"/api/TbConfigApp/{newConfig.ReportName}", newConfig);
-        })
-        .WithName("CreateTbConfigApp");
+        // 3. Retorna '200 OK' com o JSON contendo o arquivo
+        return Results.Ok(responseDto);
+    }
+    catch (Exception ex)
+    {
+        //logger.LogError(ex, "A configuração foi salva, mas a geração do relatório em Base64 falhou para '{ReportName}'.", newConfig.ReportName);
+        
+        return Results.Problem(
+            detail: $"A configuração foi salva (ID: {newConfig.Id}), mas a geração do relatório falhou. Erro: {ex.Message}",
+            statusCode: StatusCodes.Status500InternalServerError
+        );
+    }
+})
+.WithName("CreateTbConfigApp");
 
         // PUT /api/TbConfigApp/{id}
         group.MapPut("/{id}", async (int id, CreateConfigAppDto inputDto, MKReportsDbContext db) =>

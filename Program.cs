@@ -9,10 +9,14 @@ builder.Services.AddDbContext<MKReportsDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
 );
 
+builder.Services.AddScoped<IReportGeneratorService, FastReportService>();
+
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+FastReport.Utils.Config.WebMode = true;
 
 var app = builder.Build();
 
