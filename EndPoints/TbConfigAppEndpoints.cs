@@ -14,7 +14,7 @@ public static class TbConfigAppEndpoints
         // GET /api/TbConfigApp
         group.MapGet("/", async (MKReportsDbContext db) =>
         {
-            // Assumindo que o DbSet no seu MKReportsDbContext se chama "TbConfigApps"
+            
             return await db.TbConfigApps.ToListAsync();
         })
         .WithName("GetAllTbConfigApps");
